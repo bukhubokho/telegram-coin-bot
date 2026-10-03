@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Coin Bot — Đăng nhập</title>
+<style>
+  :root{
+    --bg-0:#0a0e1a; --bg-1:#111827; --card:#0f1626cc;
+    --stroke:#1f2b43; --stroke-hi:#2c3d5e;
+    --txt:#e8edf7; --muted:#8a99b8; --faint:#5a6b8c;
+    --accent:#5b8cff; --accent-2:#7c5cff; --accent-glow:#5b8cff55;
+    --ok:#36d399; --err:#ff5c7a;
+    --field:#0b1322; --field-hi:#0e1830;
+    --r:16px; --r-sm:11px;
+    --ease:cubic-bezier(.2,.7,.2,1);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Helvetica,Arial,sans-serif;
+    background:radial-gradient(1200px 700px at 15% -10%,#1a2744 0%,transparent 55%),
+               radial-gradient(1000px 800px at 110% 20%,#231a44 0%,transparent 50%),
+               linear-gradient(160deg,var(--bg-0),var(--bg-1));
+    color:var(--txt);
+    min-height:100%;
+    display:grid;place-items:center;
+    padding:24px;
+    overflow-x:hidden;
+  }
+
+  /* floating ambient orbs */
+  .orb{position:fixed;border-radius:50%;filter:blur(60px);opacity:.35;z-index:0;animation:float 14s var(--ease) infinite alternate}
+  .orb.a{width:340px;height:340px;background:#3b5cff;top:-80px;left:-60px}
+  .orb.b{width:300px;height:300px;background:#8a3bff;bottom:-90px;right:-50px;animation-delay:-6s}
+  @keyframes float{to{transform:translate(40px,30px) scale(1.1)}}
+
+  .shell{
+    position:relative;z-index:1;
+    width:100%;max-width:410px;
+    background:var(--card);
+    backdrop-filter:blur(18px);
+    border:1px solid var(--stroke);
+    border-radius:var(--r);
+    box-shadow:0 30px 80px -20px #000a,0 0 0 1px #ffffff08 inset;
+    padding:34px 30px 30px;
+    animation:rise .6s var(--ease) both;
+  }
+  @keyframes rise{from{opacity:0;transform:translateY(18px) scale(.98)}}
+
+  .brand{display:flex;align-items:center;gap:11px;margin-bottom:26px;justify-content:center}
+  .logo{
+    width:42px;height:42px;border-radius:12px;
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    display:grid;place-items:center;font-weight:800;font-size:20px;color:#fff;
+    box-shadow:0 8px 24px var(--accent-glow);
+  }
+  .brand h1{font-size:19px;font-weight:700;letter-spacing:.2px}
+  .brand span{color:var(--accent)}
+
+  /* tabs */
+  .tabs{position:relative;display:grid;grid-template-columns:1fr 1fr;
+    background:var(--field);border:1px solid var(--stroke);border-radius:var(--r-sm);
+    padding:5px;margin-bottom:24px}
+  .tabs button{
+    position:relative;z-index:2;border:0;background:transparent;cursor:pointer;
+    color:var(--muted);font-size:14px;font-weight:600;padding:10px 0;border-radius:8px;
+    transition:color .3s var(--ease);
+  }
+  .tabs button.on{color:#fff}
+  .glider{
+    position:absolute;z-index:1;top:5px;left:5px;height:calc(100% - 10px);width:calc(50% - 5px);
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    border-radius:8px;box-shadow:0 6px 18px var(--accent-glow);
+    transition:transform .35s var(--ease);
+  }
+  .tabs[data-mode="signup"] .glider{transform:translateX(100%)}
+
+  /* forms */
+  form{display:none;flex-direction:column;gap:15px;animation:fade .35s var(--ease) both}
+  form.active{display:flex}
+  @keyframes fade{from{opacity:0;transform:translateX(8px)}}
+
+  .field{position:relative}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:7px;font-weight:600}
+  .field .wrap{position:relative;display:flex;align-items:center}
+  .field input{
+    width:100%;background:var(--field);border:1px solid var(--stroke);
+    color:var(--txt);font-size:14.5px;padding:13px 14px;border-radius:var(--r-sm);
+    transition:border-color .25s,box-shadow .25s,background .25s;outline:none;
+  }
+  .field input::placeholder{color:var(--faint)}
+  .field input:focus{
+    border-color:var(--accent);background:var(--field-hi);
+    box-shadow:0 0 0 4px var(--accent-glow);
+  }
+  .field.bad input{border-color:var(--err);box-shadow:0 0 0 4px #ff5c7a33}
+  .field .eye{
+    position:absolute;right:12px;background:none;border:0;cursor:pointer;
+    color:var(--faint);padding:4px;line-height:0;transition:color .2s}
+  .field .eye:hover{color:var(--muted)}
+  .msg{font-size:11.5px;color:var(--err);margin-top:6px;min-height:14px;opacity:0;transition:opacity .2s}
+  .field.bad .msg{opacity:1}
+
+  /* password strength */
+  .meter{display:flex;gap:5px;margin-top:9px}
+  .meter i{flex:1;height:4px;border-radius:3px;background:var(--stroke);transition:background .3s}
+  .meter[data-s="1"] i:nth-child(1){background:var(--err)}
+  .meter[data-s="2"] i:nth-child(-n+2){background:#ffb84d}
+  .meter[data-s="3"] i:nth-child(-n+3){background:#ffe14d}
+  .meter[data-s="4"] i{background:var(--ok)}
+
+  .row{display:flex;align-items:center;justify-content:space-between;font-size:12.5px;margin-top:-2px}
+  .check{display:flex;align-items:center;gap:8px;color:var(--muted);cursor:pointer;user-select:none}
+  .check input{appearance:none;width:17px;height:17px;border:1px solid var(--stroke-hi);border-radius:5px;
+    background:var(--field);cursor:pointer;position:relative;transition:.2s}
+  .check input:checked{background:linear-gradient(135deg,var(--accent),var(--accent-2));border-color:transparent}
+  .check input:checked::after{content:"";position:absolute;left:5px;top:1.5px;width:4px;height:9px;
+    border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+  .link{color:var(--accent);text-decoration:none;font-weight:600}
+  .link:hover{text-decoration:underline}
+
+  .submit{
+    margin-top:6px;border:0;cursor:pointer;color:#fff;font-size:15px;font-weight:700;
+    padding:14px;border-radius:var(--r-sm);
+    background:linear-gradient(135deg,var(--accent),var(--accent-2));
+    box-shadow:0 12px 30px -8px var(--accent-glow);
+    transition:transform .15s var(--ease),box-shadow .25s,filter .2s;
+  }
+  .submit:hover{filter:brightness(1.08);box-shadow:0 16px 36px -8px var(--accent-glow)}
+  .submit:active{transform:translateY(1px) scale(.99)}
+  .submit.loading{pointer-events:none;color:transparent;position:relative}
+  .submit.loading::after{content:"";position:absolute;inset:0;margin:auto;width:18px;height:18px;
+    border:2.5px solid #fff5;border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .divider{display:flex;align-items:center;gap:12px;color:var(--faint);font-size:12px;margin:4px 0}
+  .divider::before,.divider::after{content:"";flex:1;height:1px;background:var(--stroke)}
+
+  .socials{display:grid;grid-template-columns:1fr 1fr;gap:11px}
+  .soc{display:flex;align-items:center;justify-content:center;gap:8px;cursor:pointer;
+    background:var(--field);border:1px solid var(--stroke);color:var(--txt);
+    padding:11px;border-radius:var(--r-sm);font-size:13px;font-weight:600;
+    transition:border-color .2s,background .2s,transform .12s}
+  .soc:hover{border-color:var(--stroke-hi);background:var(--field-hi)}
+  .soc:active{transform:translateY(1px)}
+  .soc svg{width:17px;height:17px}
+
+  .foot{text-align:center;color:var(--muted);font-size:13px;margin-top:22px}
+  .foot a{color:var(--accent);font-weight:600;text-decoration:none;cursor:pointer}
+  .foot a:hover{text-decoration:underline}
+
+  /* success toast */
+  .toast{
+    position:fixed;z-index:10;left:50%;bottom:30px;transform:translate(-50%,120px);
+    background:var(--ok);color:#042;padding:13px 22px;border-radius:12px;font-weight:700;font-size:14px;
+    box-shadow:0 14px 40px -8px #36d39977;transition:transform .45s var(--ease);display:flex;gap:9px;align-items:center}
+  .toast.show{transform:translate(-50%,0)}
+</style>
+</head>
+<body>
+  <div class="orb a"></div><div class="orb b"></div>
+
+  <main class="shell">
+    <div class="brand">
+      <div class="logo">₵</div>
+      <h1>Coin<span>Bot</span></h1>
+    </div>
+
+    <div class="tabs" id="tabs" data-mode="login">
+      <span class="glider"></span>
+      <button class="on" data-t="login">Đăng nhập</button>
+      <button data-t="signup">Đăng ký</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form id="loginForm" class="active" novalidate>
+      <div class="field" data-v="email">
+        <label>Email</label>
+        <div class="wrap"><input type="email" name="email" placeholder="ban@email.com" autocomplete="email"></div>
+        <div class="msg">Email không hợp lệ</div>
+      </div>
+      <div class="field" data-v="pass">
+        <label>Mật khẩu</label>
+        <div class="wrap">
+          <input type="password" name="pass" placeholder="••••••••" autocomplete="current-password">
+          <button type="button" class="eye" aria-label="Hiện mật khẩu">👁</button>
+        </div>
+        <div class="msg">Vui lòng nhập mật khẩu</div>
+      </div>
+      <div class="row">
+        <label class="check"><input type="checkbox"> Ghi nhớ tôi</label>
+        <a class="link" href="#">Quên mật khẩu?</a>
+      </div>
+      <button type="submit" class="submit">Đăng nhập</button>
+
+      <div class="divider">hoặc tiếp tục với</div>
+      <div class="socials">
+        <button type="button" class="soc">
+          <svg viewBox="0 0 24 24"><path fill="#EA4335" d="M12 5c1.6 0 3 .6 4.1 1.6L19 3.7C17.1 2 14.7 1 12 1 7.4 1 3.5 3.6 1.6 7.4l3.4 2.6C6 7.1 8.8 5 12 5z"/><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.6-.2-2.3H12v4.5h6.2c-.3 1.5-1.1 2.7-2.4 3.5l3.7 2.9c2.2-2 3.5-5 3.5-8.6z"/><path fill="#FBBC05" d="M5 14c-.2-.6-.4-1.3-.4-2s.1-1.4.4-2L1.6 7.4C.9 8.8.5 10.3.5 12s.4 3.2 1.1 4.6L5 14z"/><path fill="#34A853" d="M12 23c2.7 0 5-.9 6.6-2.4l-3.7-2.9c-1 .7-2.3 1.1-2.9 1.1-3.2 0-5.9-2.1-6.9-5L1.6 16.6C3.5 20.4 7.4 23 12 23z"/></svg>
+          Google
+        </button>
+        <button type="button" class="soc">
+          <svg viewBox="0 0 24 24"><path fill="#fff" d="M16.4 1c.1 1.1-.3 2.2-1 3-.7.9-1.9 1.5-3 1.4-.1-1.1.4-2.2 1-2.9.8-.9 2-1.4 3-1.5zM20 17.1c-.5 1.2-.8 1.7-1.5 2.8-1 1.5-2.4 3.4-4.1 3.4-1.6 0-2-1-4.1-1-2.2 0-2.6 1-4.1 1-1.7 0-3-1.7-4-3.2C-.3 16.9-.6 11.7 1.5 9c1-1.4 2.7-2.3 4.3-2.3 1.6 0 2.7 1 4 1 1.3 0 2.1-1 4-1 1.4 0 2.9.8 4 2.1-3.5 1.9-3 7 .2 8.3z"/></svg>
+          Apple
+        </button>
+      </div>
+    </form>
+
+    <!-- SIGNUP -->
+    <form id="signupForm" novalidate>
+      <div class="field" data-v="name">
+        <label>Tên hiển thị</label>
+        <div class="wrap"><input type="text" name="name" placeholder="Nguyễn Văn A" autocomplete="name"></div>
+        <div class="msg">Nhập ít nhất 2 ký tự</div>
+      </div>
+      <div class="field" data-v="email">
+        <label>Email</label>
+        <div class="wrap"><input type="email" name="email" placeholder="ban@email.com" autocomplete="email"></div>
+        <div class="msg">Email không hợp lệ</div>
+      </div>
+      <div class="field" data-v="pass">
+        <label>Mật khẩu</label>
+        <div class="wrap">
+          <input type="password" name="pass" placeholder="Tối thiểu 8 ký tự" autocomplete="new-password">
+          <button type="button" class="eye" aria-label="Hiện mật khẩu">👁</button>
+        </div>
+        <div class="meter" data-s="0"><i></i><i></i><i></i><i></i></div>
+        <div class="msg">Mật khẩu quá yếu</div>
+      </div>
+      <label class="check" style="font-size:12.5px;margin-top:2px">
+        <input type="checkbox" id="terms"> Tôi đồng ý với <a class="link" href="#">Điều khoản</a> &amp; <a class="link" href="#">Bảo mật</a>
+      </label>
+      <button type="submit" class="submit">Tạo tài khoản</button>
+    </form>
+
+    <p class="foot" id="foot">Chưa có tài khoản? <a data-go="signup">Đăng ký ngay</a></p>
+  </main>
+
+  <div class="toast" id="toast">✓ <span id="toastText">Thành công!</span></div>
+
+<script>
+const tabs=document.getElementById('tabs'),
+      glider=tabs.querySelector('.glider'),
+      tabBtns=[...tabs.querySelectorAll('button')],
+      loginForm=document.getElementById('loginForm'),
+      signupForm=document.getElementById('signupForm'),
+      foot=document.getElementById('foot'),
+      toast=document.getElementById('toast'),
+      toastText=document.getElementById('toastText');
+
+// ---- tab switching ----
+function setMode(m){
+  tabs.dataset.mode=m;
+  tabBtns.forEach(b=>b.classList.toggle('on',b.dataset.t===m));
+  loginForm.classList.toggle('active',m==='login');
+  signupForm.classList.toggle('active',m==='signup');
+  foot.innerHTML = m==='login'
+    ? 'Chưa có tài khoản? <a data-go="signup">Đăng ký ngay</a>'
+    : 'Đã có tài khoản? <a data-go="login">Đăng nhập</a>';
+}
+tabs.addEventListener('click',e=>{const b=e.target.closest('button');if(b)setMode(b.dataset.t)});
+foot.addEventListener('click',e=>{const a=e.target.closest('[data-go]');if(a)setMode(a.dataset.go)});
+
+// ---- show / hide password ----
+document.querySelectorAll('.eye').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    const inp=btn.parentElement.querySelector('input');
+    const show=inp.type==='password';
+    inp.type=show?'text':'password';
+    btn.textContent=show?'🙈':'👁';
+  });
+});
+
+// ---- password strength ----
+function score(p){
+  let s=0;
+  if(p.length>=8)s++;
+  if(/[A-Z]/.test(p)&&/[a-z]/.test(p))s++;
+  if(/\d/.test(p))s++;
+  if(/[^A-Za-z0-9]/.test(p))s++;
+  return s;
+}
+const sPass=signupForm.querySelector('[name=pass]'),
+      meter=signupForm.querySelector('.meter');
+sPass.addEventListener('input',()=>meter.dataset.s=score(sPass.value));
+
+// ---- validation helpers ----
+const emailRe=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+function fail(form,key,why){
+  const f=form.querySelector(`[data-v="${key}"]`);
+  f.classList.add('bad');
+  if(why)f.querySelector('.msg').textContent=why;
+  f.querySelector('input').addEventListener('input',()=>f.classList.remove('bad'),{once:true});
+  return false;
+}
+function popToast(txt){
+  toastText.textContent=txt;
+  toast.classList.add('show');
+  setTimeout(()=>toast.classList.remove('show'),2600);
+}
+function submitting(form){
+  const btn=form.querySelector('.submit');
+  btn.classList.add('loading');
+  setTimeout(()=>btn.classList.remove('loading'),1200);
+}
+
+// ---- login submit ----
+loginForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  let ok=true;
+  const email=loginForm.email.value.trim(), pass=loginForm.pass.value;
+  if(!emailRe.test(email))ok=fail(loginForm,'email','Email không hợp lệ');
+  if(!pass)ok=fail(loginForm,'pass','Vui lòng nhập mật khẩu')&&ok;
+  if(!ok)return;
+  submitting(loginForm);
+  setTimeout(()=>popToast('Đăng nhập thành công!'),1200);
+});
+
+// ---- signup submit ----
+signupForm.addEventListener('submit',e=>{
+  e.preventDefault();
+  let ok=true;
+  const name=signupForm.name.value.trim(),
+        email=signupForm.email.value.trim(),
+        pass=signupForm.pass.value;
+  if(name.length<2)ok=fail(signupForm,'name','Nhập ít nhất 2 ký tự');
+  if(!emailRe.test(email))ok=fail(signupForm,'email','Email không hợp lệ')&&ok;
+  if(score(pass)<2)ok=fail(signupForm,'pass','Mật khẩu quá yếu (8+ ký tự, chữ hoa, số)')&&ok;
+  if(!document.getElementById('terms').checked){ok=false;popToast('Hãy đồng ý điều khoản');}
+  if(!ok)return;
+  submitting(signupForm);
+  setTimeout(()=>popToast('Tạo tài khoản thành công!'),1200);
+});
+</script>
+</body>
+</html>
