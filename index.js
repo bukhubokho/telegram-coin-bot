@@ -9,7 +9,8 @@ const ADMIN_SECRET   = process.env.ADMIN_SECRET || "benzex-admin-secret-changeme
 let   maintenanceMode = process.env.MAINTENANCE === '1';
 
 // ==== DB ====
-const db = new sqlite3.Database('./data.db');
+const DB_PATH = process.env.DB_PATH || './data.db';
+const db = new sqlite3.Database(DB_PATH);
 
 db.serialize(() => {
     db.run(`CREATE TABLE IF NOT EXISTS bx_products (
