@@ -1,38 +1,17 @@
-const TelegramBot = require('node-telegram-bot-api');
 const sqlite3    = require('sqlite3').verbose();
 const express    = require('express');
 const cors       = require('cors');
 const crypto     = require('crypto');
 
 // ==== CONFIG ====
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "NHẬP_TOKEN_CỦA_BẠN_VÀO_ĐÂY";
 const API_PORT       = process.env.PORT || 3000;
-// Admin secret key để gọi các API tạo/xóa key/product/reseller
 const ADMIN_SECRET   = process.env.ADMIN_SECRET || "benzex-admin-secret-changeme";
-// Bật maintenance từ env khi cần
 let   maintenanceMode = process.env.MAINTENANCE === '1';
 
 // ==== DB ====
 const db = new sqlite3.Database('./data.db');
 
 db.serialize(() => {
-    // Telegram bot tables
-    db.run(`CREATE TABLE IF NOT EXISTS users (
-        id INTEGER PRIMARY KEY,
-        username TEXT,
-        coins INTEGER DEFAULT 0,
-        last_claim INTEGER DEFAULT 0
-    )`);
-    db.run(`CREATE TABLE IF NOT EXISTS redeem (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        user_id INTEGER,
-        name TEXT,
-        phone TEXT,
-        email TEXT,
-        coins_spent INTEGER
-    )`);
-
-    // BENZ EX key system tables
     db.run(`CREATE TABLE IF NOT EXISTS bx_products (
         id TEXT PRIMARY KEY,
         name TEXT NOT NULL,
@@ -127,21 +106,17 @@ app.post('/api/activate', async (req, res) => {
         const { key, hwid } = req.body || {};
         if (!key || !hwid) return res.status(400).json({ message: 'key và hwid là bắt buộc.' });
 
-        // Maintenance check
         if (maintenanceMode)
             return res.status(503).json({ message: 'Server đang bảo trì. Vui lòng thử lại sau.' });
 
-        // Banned HWID
         const banned = await dbGet('SELECT hwid FROM bx_banned_devices WHERE hwid = ?', [hwid]);
         if (banned) return res.status(403).json({ message: 'Thiết bị của bạn đã bị khoá.' });
 
-        // Find key
         const k = await dbGet('SELECT * FROM bx_keys WHERE key_code = ?', [key.trim().toUpperCase()]);
         if (!k) return res.status(403).json({ message: 'Key không tồn tại.' });
 
         const status = computeKeyStatus(k);
 
-        // Check product hidden / maintenance
         if (k.product_id) {
             const prod = await dbGet('SELECT status FROM bx_products WHERE id = ?', [k.product_id]);
             if (prod && prod.status === 'Hidden')
@@ -151,13 +126,10 @@ app.post('/api/activate', async (req, res) => {
         if (status === 'Expired')  return res.status(403).json({ message: 'Key đã hết hạn.' });
         if (status === 'Paused')   return res.status(503).json({ message: 'Key đang tạm dừng (bảo trì).' });
 
-        // Already activated
         if (status === 'Activated') {
-            // Check if this HWID already registered
             const dev = await dbGet(
                 'SELECT hwid FROM bx_key_devices WHERE key_id = ? AND hwid = ?', [k.id, hwid]);
             if (!dev) {
-                // New device — check limit
                 const devCount = await dbGet(
                     'SELECT COUNT(*) as cnt FROM bx_key_devices WHERE key_id = ?', [k.id]);
                 if (devCount.cnt >= k.max_devices)
@@ -209,7 +181,7 @@ app.post('/api/activate', async (req, res) => {
     }
 });
 
-// PUBLIC: GET /api/key-info?key=XXX  (check status without activating)
+// PUBLIC: GET /api/key-info?key=XXX
 app.get('/api/key-info', async (req, res) => {
     try {
         const { key } = req.query;
@@ -270,7 +242,6 @@ app.delete('/api/admin/keys/:id', adminOnly, async (req, res) => {
     res.json({ ok: true });
 });
 
-// Ban device
 app.post('/api/admin/ban-device', adminOnly, async (req, res) => {
     const { hwid, bannedBy, reason } = req.body;
     await dbRun(
@@ -310,7 +281,6 @@ app.post('/api/admin/products', adminOnly, async (req, res) => {
 
 app.put('/api/admin/products/:id', adminOnly, async (req, res) => {
     const { name, category, status, description, durations } = req.body;
-    // Pause/unpause keys if hidden status changes
     const prev = await dbGet('SELECT status FROM bx_products WHERE id = ?', [req.params.id]);
     await dbRun(
         `UPDATE bx_products SET name=?, category=?, status=?, description=?, durations=? WHERE id=?`,
@@ -318,12 +288,10 @@ app.put('/api/admin/products/:id', adminOnly, async (req, res) => {
          JSON.stringify(durations || []), req.params.id]
     );
     if (prev && prev.status !== 'Hidden' && status === 'Hidden') {
-        // Pause active keys of this product
         await dbRun(
             `UPDATE bx_keys SET paused_at=? WHERE product_id=? AND activated_at IS NOT NULL AND paused_at IS NULL`,
             [Date.now(), req.params.id]);
     } else if (prev && prev.status === 'Hidden' && status !== 'Hidden') {
-        // Unpause: extend expires_at by paused duration
         const keys = await dbAll(
             `SELECT id, expires_at, paused_at FROM bx_keys WHERE product_id=? AND paused_at IS NOT NULL`,
             [req.params.id]);
@@ -403,12 +371,10 @@ app.post('/api/admin/maintenance', adminOnly, async (req, res) => {
     const { on } = req.body;
     maintenanceMode = !!on;
     if (maintenanceMode) {
-        // Pause all active keys
         await dbRun(
             `UPDATE bx_keys SET paused_at=? WHERE activated_at IS NOT NULL AND paused_at IS NULL`,
             [Date.now()]);
     } else {
-        // Unpause all
         const keys = await dbAll(
             `SELECT id, expires_at, paused_at FROM bx_keys WHERE paused_at IS NOT NULL`, []);
         const now = Date.now();
@@ -459,92 +425,4 @@ app.get('/api/ping', (req, res) => res.json({ ok: true, maintenance: maintenance
 
 app.listen(API_PORT, () => {
     console.log(`[BENZ EX API] Running on port ${API_PORT}`);
-});
-
-// ==== TELEGRAM BOT ====
-const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
-
-bot.onText(/\/start/, (msg) => {
-    const chatId = msg.chat.id;
-    db.get(`SELECT * FROM users WHERE id = ?`, [chatId], (err, row) => {
-        if (!row) {
-            db.run(`INSERT INTO users (id, username, coins) VALUES (?, ?, 0)`,
-                [chatId, msg.chat.username || ''],
-                () => bot.sendMessage(chatId, "Chào mừng! Bạn đã được thêm vào hệ thống."));
-        } else {
-            bot.sendMessage(chatId, "Chào mừng trở lại!");
-        }
-    });
-});
-
-bot.onText(/\/claim/, (msg) => {
-    const chatId = msg.chat.id;
-    const now    = Date.now();
-    db.get(`SELECT coins, last_claim FROM users WHERE id = ?`, [chatId], (err, row) => {
-        if (!row) return bot.sendMessage(chatId, "Bạn chưa /start.");
-        const cooldown = 60 * 1000;
-        if (now - row.last_claim < cooldown) {
-            const waitSec = Math.ceil((cooldown - (now - row.last_claim)) / 1000);
-            return bot.sendMessage(chatId, `Bạn cần chờ ${waitSec} giây nữa.`);
-        }
-        const newCoins = row.coins + 10;
-        db.run(`UPDATE users SET coins = ?, last_claim = ? WHERE id = ?`, [newCoins, now, chatId], () => {
-            bot.sendMessage(chatId, `Bạn nhận được 10 xu! Tổng: ${newCoins} xu.`);
-        });
-    });
-});
-
-bot.onText(/\/bonus/, (msg) => {
-    bot.sendMessage(msg.chat.id, "Bấm nút để nhận xu:", {
-        reply_markup: {
-            inline_keyboard: [[{ text: "Nhận xu ngay", callback_data: "get_bonus" }]]
-        }
-    });
-});
-
-bot.on("callback_query", (query) => {
-    const chatId = query.message.chat.id;
-    if (query.data === "get_bonus") {
-        db.get(`SELECT coins FROM users WHERE id = ?`, [chatId], (err, row) => {
-            const newCoins = (row?.coins || 0) + 5;
-            db.run(`UPDATE users SET coins = ? WHERE id = ?`, [newCoins, chatId], () => {
-                bot.answerCallbackQuery(query.id, { text: "Bạn nhận được 5 xu!" });
-                bot.editMessageText(`Bạn đã nhận xu! Tổng: ${newCoins} xu.`, {
-                    chat_id:    chatId,
-                    message_id: query.message.message_id
-                });
-            });
-        });
-    }
-});
-
-bot.onText(/\/spin/, (msg) => {
-    const chatId = msg.chat.id;
-    const reward = Math.floor(Math.random() * 50) + 1;
-    db.get(`SELECT coins FROM users WHERE id = ?`, [chatId], (err, row) => {
-        const newCoins = (row?.coins || 0) + reward;
-        db.run(`UPDATE users SET coins = ? WHERE id = ?`, [newCoins, chatId], () => {
-            bot.sendMessage(chatId, `🎰 Bạn quay được ${reward} xu! Tổng: ${newCoins} xu.`);
-        });
-    });
-});
-
-bot.onText(/\/redeem/, (msg) => {
-    bot.sendMessage(msg.chat.id, "Nhập thông tin đổi thưởng theo dạng:\nTên | SĐT | Email | Xu cần đổi");
-});
-
-bot.on("message", (msg) => {
-    if (!msg.text || !msg.text.includes("|")) return;
-    const parts = msg.text.split("|").map(p => p.trim());
-    if (parts.length !== 4) return;
-    const [name, phone, email, coinsStr] = parts;
-    const coins  = parseInt(coinsStr);
-    const chatId = msg.chat.id;
-    db.get(`SELECT coins FROM users WHERE id = ?`, [chatId], (err, row) => {
-        if (!row || row.coins < coins) return bot.sendMessage(chatId, "Không đủ xu.");
-        db.run(`UPDATE users SET coins = ? WHERE id = ?`, [row.coins - coins, chatId]);
-        db.run(`INSERT INTO redeem (user_id, name, phone, email, coins_spent) VALUES (?, ?, ?, ?, ?)`,
-            [chatId, name, phone, email, coins]);
-        bot.sendMessage(chatId, "Yêu cầu đổi thưởng đã được ghi nhận!");
-    });
 });
