@@ -209,7 +209,10 @@ app.get('/api/key-info', async (req, res) => {
 // ADMIN: Keys
 // ─────────────────────────────────────────────────────────────────────
 app.get('/api/admin/keys', adminOnly, async (req, res) => {
-    const rows = await dbAll('SELECT * FROM bx_keys ORDER BY created_at DESC', []);
+    const rows = await dbAll(
+        `SELECT k.*, COUNT(d.hwid) as device_count
+         FROM bx_keys k LEFT JOIN bx_key_devices d ON k.id = d.key_id
+         GROUP BY k.id ORDER BY k.created_at DESC`, []);
     res.json(rows);
 });
 
@@ -237,9 +240,33 @@ app.post('/api/admin/keys', adminOnly, async (req, res) => {
     }
 });
 
+app.put('/api/admin/keys/:id', adminOnly, async (req, res) => {
+    const { duration, maxDevices } = req.body;
+    await dbRun(
+        `UPDATE bx_keys SET duration=?, max_devices=? WHERE id=?`,
+        [duration, maxDevices || 1, req.params.id]);
+    res.json({ ok: true });
+});
+
 app.delete('/api/admin/keys/:id', adminOnly, async (req, res) => {
     await dbRun('DELETE FROM bx_keys WHERE id = ?', [req.params.id]);
     await dbRun('DELETE FROM bx_key_devices WHERE key_id = ?', [req.params.id]);
+    res.json({ ok: true });
+});
+
+app.get('/api/admin/keys/:id/devices', adminOnly, async (req, res) => {
+    const rows = await dbAll('SELECT hwid FROM bx_key_devices WHERE key_id = ?', [req.params.id]);
+    res.json(rows.map(r => r.hwid));
+});
+
+app.delete('/api/admin/keys/:id/devices', adminOnly, async (req, res) => {
+    await dbRun('DELETE FROM bx_key_devices WHERE key_id = ?', [req.params.id]);
+    await dbRun(`UPDATE bx_keys SET status='Available', activated_at=NULL, expires_at=NULL, paused_at=NULL WHERE id=?`, [req.params.id]);
+    res.json({ ok: true });
+});
+
+app.delete('/api/admin/keys/:id/devices/:hwid', adminOnly, async (req, res) => {
+    await dbRun('DELETE FROM bx_key_devices WHERE key_id = ? AND hwid = ?', [req.params.id, req.params.hwid]);
     res.json({ ok: true });
 });
 
@@ -254,6 +281,11 @@ app.post('/api/admin/ban-device', adminOnly, async (req, res) => {
 app.delete('/api/admin/ban-device/:hwid', adminOnly, async (req, res) => {
     await dbRun('DELETE FROM bx_banned_devices WHERE hwid = ?', [req.params.hwid]);
     res.json({ ok: true });
+});
+
+app.get('/api/admin/banned-devices', adminOnly, async (req, res) => {
+    const rows = await dbAll('SELECT hwid FROM bx_banned_devices', []);
+    res.json(rows.map(r => r.hwid));
 });
 
 // ─────────────────────────────────────────────────────────────────────
