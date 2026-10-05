@@ -218,8 +218,8 @@ app.get('/api/admin/keys', adminOnly, async (req, res) => {
 
 app.post('/api/admin/keys', adminOnly, async (req, res) => {
     try {
-        const { productId, productName, duration, maxDevices, count, prefix, createdBy, note } = req.body;
-        const n = Math.min(parseInt(count) || 1, 500);
+        const { productId, productName, duration, maxDevices, count, prefix, createdBy, note, quantity } = req.body;
+        const n = Math.min(parseInt(count || quantity) || 1, 500);
         const results = [];
         for (let i = 0; i < n; i++) {
             const id  = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
@@ -232,7 +232,7 @@ app.post('/api/admin/keys', adminOnly, async (req, res) => {
                 [id, keyCode, productId || '', productName || '', duration || 'Lifetime',
                  maxDevices || 1, createdBy || 'admin', pfx, note || '']
             );
-            results.push({ id, keyCode });
+            results.push({ id, key_code: keyCode });
         }
         res.json({ created: results.length, keys: results });
     } catch (err) {
@@ -455,6 +455,9 @@ app.post('/api/reseller/login', async (req, res) => {
 
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, maintenance: maintenanceMode }));
+
+// Admin panel
+app.get('/admin', (req, res) => res.sendFile(require('path').join(__dirname, 'panel.html')));
 
 app.listen(API_PORT, () => {
     console.log(`[BENZ EX API] Running on port ${API_PORT}`);
