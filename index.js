@@ -456,6 +456,9 @@ app.post('/api/reseller/login', async (req, res) => {
 // Health check
 app.get('/api/ping', (req, res) => res.json({ ok: true, maintenance: maintenanceMode }));
 
+// Admin panel
+app.get('/admin', (req, res) => res.sendFile(require('path').join(__dirname, 'panel.html')));
+
 app.listen(API_PORT, () => {
     console.log(`[BENZ EX API] Running on port ${API_PORT}`);
 });
