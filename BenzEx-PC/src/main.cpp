@@ -112,6 +112,8 @@ int main() {
                 resized = true;
             }
             MenuUI::Draw();
+            if (MenuUI::WantClose())
+                glfwSetWindowShouldClose(window, GLFW_TRUE);
         }
 
         ImGui::Render();
