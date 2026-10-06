@@ -140,6 +140,7 @@ app.post('/api/activate', async (req, res) => {
             }
             const devices = await dbAll('SELECT hwid FROM bx_key_devices WHERE key_id = ?', [k.id]);
             return res.json({
+                ok:          true,
                 product:     k.product_name || '',
                 expiresAt:   k.expires_at   || 'Lifetime',
                 devicesUsed: devices.length,
@@ -170,6 +171,7 @@ app.post('/api/activate', async (req, res) => {
             'INSERT OR IGNORE INTO bx_key_devices (key_id, hwid) VALUES (?, ?)', [k.id, hwid]);
 
         return res.json({
+            ok:          true,
             product:     k.product_name || '',
             expiresAt:   expiresAt      || 'Lifetime',
             devicesUsed: 1,
