@@ -106,9 +106,9 @@ int main() {
         } else {
             static bool resized = false;
             if (!resized) {
-                glfwSetWindowSize(window, 700, 500);
+                glfwSetWindowSize(window, 1020, 700);
                 const GLFWvidmode* m = glfwGetVideoMode(glfwGetPrimaryMonitor());
-                if (m) glfwSetWindowPos(window, (m->width - 700) / 2, (m->height - 500) / 2);
+                if (m) glfwSetWindowPos(window, (m->width - 1020) / 2, (m->height - 700) / 2);
                 resized = true;
             }
             MenuUI::Draw();
