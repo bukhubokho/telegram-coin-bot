@@ -127,9 +127,9 @@ void Draw() {
 
     ImGuiIO& io = ImGui::GetIO();
 
-    // Full-window dark overlay
+    // Background fill — matches glClearColor navy (15, 20, 33)
     ImGui::GetBackgroundDrawList()->AddRectFilled(
-        ImVec2(0, 0), io.DisplaySize, IM_COL32(6, 8, 13, 235));
+        ImVec2(0, 0), io.DisplaySize, IM_COL32(15, 20, 33, 255));
 
     const float W = io.DisplaySize.x, H = io.DisplaySize.y;
     ImGui::SetNextWindowPos(ImVec2(0, 0));
