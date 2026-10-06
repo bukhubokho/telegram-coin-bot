@@ -76,6 +76,31 @@ int main() {
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
 
+        // Borderless window drag — hold LMB on top bar (y < 32) to move
+        {
+            static bool  dragging = false;
+            static double dragStartX = 0, dragStartY = 0;
+            static int    winStartX = 0,  winStartY = 0;
+            ImGuiIO& io2 = ImGui::GetIO();
+            if (!dragging && ImGui::IsMouseClicked(ImGuiMouseButton_Left) && io2.MousePos.y < 32.0f)
+            {
+                dragging = true;
+                glfwGetCursorPos(window, &dragStartX, &dragStartY);
+                glfwGetWindowPos(window, &winStartX, &winStartY);
+            }
+            if (dragging) {
+                if (ImGui::IsMouseDown(ImGuiMouseButton_Left)) {
+                    double cx, cy;
+                    glfwGetCursorPos(window, &cx, &cy);
+                    glfwSetWindowPos(window,
+                        winStartX + (int)(cx - dragStartX),
+                        winStartY + (int)(cy - dragStartY));
+                } else {
+                    dragging = false;
+                }
+            }
+        }
+
         if (KeyAuthUI::State() != KeyAuthUI::AuthState::Success) {
             KeyAuthUI::Draw();
         } else {
